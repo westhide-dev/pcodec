@@ -1,4 +1,6 @@
-#if defined (__cplusplus)
+#include <stddef.h>
+
+#if defined(__cplusplus)
 extern "C" {
 #endif
 
@@ -16,6 +18,6 @@ extern "C" {
 #define PCO_TYPE_I16 8
 #define PCO_TYPE_F16 9
 
-#if defined (__cplusplus)
+#if defined(__cplusplus)
 }
 #endif
