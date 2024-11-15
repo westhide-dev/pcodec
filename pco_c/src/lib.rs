@@ -1,6 +1,6 @@
 #![allow(clippy::missing_safety_doc)]
 
-use std::ptr;
+use std::mem::ManuallyDrop;
 
 use libc::{c_uchar, c_uint, c_void, size_t};
 
@@ -26,29 +26,29 @@ pco::define_number_enum!(
 pub struct PcoFfiVec {
   ptr: *const c_void,
   len: size_t,
-  raw_box: *const c_void,
+  cap: size_t,
 }
 
 impl PcoFfiVec {
-  fn init_from_bytes(&mut self, v: Vec<u8>) {
-    self.ptr = v.as_ptr() as *const c_void;
-    self.len = v.len();
-    self.raw_box = Box::into_raw(v.into_boxed_slice()) as *const c_void;
+  fn init_from_bytes(&mut self, bytes: Vec<u8>) {
+    let m = ManuallyDrop::new(bytes);
+    self.ptr = m.as_ptr() as *const c_void;
+    self.len = m.len();
+    self.cap = m.capacity();
   }
 
-  fn init_from_nums<T: Number>(&mut self, v: Vec<T>) {
-    self.ptr = v.as_ptr() as *const c_void;
-    self.len = v.len();
-    self.raw_box = Box::into_raw(v.into_boxed_slice()) as *const c_void;
+  fn init_from_nums<T: Number>(&mut self, bytes: Vec<T>) {
+    let m = ManuallyDrop::new(bytes);
+    self.ptr = m.as_ptr() as *const c_void;
+    self.len = m.len();
+    self.cap = m.capacity();
   }
 
-  fn free(&mut self) {
-    unsafe {
-      drop(Box::from_raw(self.raw_box as *mut NumVec));
-    }
-    self.ptr = ptr::null();
+  fn free<T>(&mut self) {
+    unsafe { Vec::<T>::from_raw_parts(self.ptr as *mut T, self.len, self.cap) };
+    self.ptr = std::ptr::null();
     self.len = 0;
-    self.raw_box = ptr::null();
+    self.cap = 0;
   }
 }
 
@@ -84,7 +84,7 @@ fn _simple_decompress<T: Number>(
 }
 
 #[no_mangle]
-pub extern "C" fn pco_simpler_compress(
+pub extern "C" fn pco_simple_compress(
   nums: *const c_void,
   len: size_t,
   dtype: c_uchar,
@@ -123,7 +123,23 @@ pub extern "C" fn pco_simple_decompress(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn pco_free_pcovec(ffi_vec: *mut PcoFfiVec) -> PcoError {
-  unsafe { (*ffi_vec).free() };
+pub unsafe extern "C" fn pco_free_cvec(ffi_vec: *mut PcoFfiVec) -> PcoError {
+  unsafe { (*ffi_vec).free::<u8>() };
+  PcoError::PcoSuccess
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn pco_free_dvec(ffi_vec: *mut PcoFfiVec, dtype: c_uchar) -> PcoError {
+  let Some(dtype) = NumberType::from_descriminant(dtype) else {
+    return PcoInvalidType;
+  };
+
+  match_number_enum!(
+    dtype,
+    NumberType<T> => {
+        unsafe { (*ffi_vec).free::<T>() };
+    }
+  );
+
   PcoError::PcoSuccess
 }

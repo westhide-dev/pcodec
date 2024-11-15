@@ -2,7 +2,7 @@
 #include <stdio.h>
 
 int is_empty(struct PcoFfiVec *vec) {
-  return vec->len == 0 && vec->ptr == NULL && vec->raw_box == NULL;
+  return vec->len == 0 && vec->ptr == NULL && vec->cap == 0;
 }
 
 int main() {
@@ -11,23 +11,24 @@ int main() {
   int retcode = 0;
 
   struct PcoFfiVec cvec;
-  enum PcoError res = pco_auto_compress(&input, num_elems, PCO_TYPE_F32, 8, &cvec);
+  enum PcoError res =
+      pco_simple_compress(&input, num_elems, PCO_TYPE_F32, 8, &cvec);
   if (res != PcoSuccess) {
     printf("Error compressing: %d\n", res);
     retcode = 1;
     goto cleanup_none;
   }
-  printf("Compressed %d floats to %d bytes\n", num_elems, cvec.len);
+  printf("Compressed %d floats to %zu bytes\n", num_elems, cvec.len);
 
   struct PcoFfiVec dvec;
-  res = pco_auto_decompress(cvec.ptr, cvec.len, PCO_TYPE_F32, &dvec);
+  res = pco_simple_decompress(cvec.ptr, cvec.len, PCO_TYPE_F32, &dvec);
   if (res != PcoSuccess) {
     printf("Error decompressing: %d\n", res);
-    pco_free_pcovec(&cvec);
+    pco_free_cvec(&cvec);
     retcode = 1;
     goto cleanup_cvec;
   }
-  printf("Decompressed %d floats\n", dvec.len);
+  printf("Decompressed %zu floats\n", dvec.len);
   if (dvec.len != num_elems) {
     printf("Sizes do not match!!!\n");
     retcode = 1;
@@ -44,13 +45,13 @@ int main() {
   printf("Values match\n");
 
 cleanup_all:
-  pco_free_pcovec(&dvec);
+  pco_free_dvec(&dvec, PCO_TYPE_F32);
   if (!is_empty(&dvec)) {
     printf("Decompression vector not freed!!!\n");
     retcode = 1;
   }
 cleanup_cvec:
-  pco_free_pcovec(&cvec);
+  pco_free_cvec(&cvec);
   if (!is_empty(&cvec)) {
     printf("Compression vector not freed!!!\n");
     retcode = 1;
