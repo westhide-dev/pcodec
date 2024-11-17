@@ -8,3 +8,6 @@ temp
 *.swp
 **/__pycache__/**
 .vscode/*
+
+.cache
+/build

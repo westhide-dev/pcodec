@@ -1,3 +1,4 @@
+#include <stddef.h>
 
 typedef enum PcoError {
   PcoSuccess,
